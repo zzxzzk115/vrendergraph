@@ -8,7 +8,7 @@
 
 #include <functional>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     using ImportFn = std::function<
         FrameGraphResource(FrameGraph&, std::string_view resourceName, const nlohmann::json& resourceDesc)>;
@@ -24,4 +24,4 @@ namespace vultra::rg
         const RenderGraphRegistry& m_Registry;
         ImportFn                   m_Importer;
     };
-} // namespace vultra::rg
+} // namespace vrendergraph

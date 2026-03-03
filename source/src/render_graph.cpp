@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     RenderGraph::RenderGraph(const RenderGraphRegistry& registry, ImportFn importer) :
         m_Registry(registry), m_Importer(std::move(importer))
@@ -70,4 +70,4 @@ namespace vultra::rg
             }
         }
     }
-} // namespace vultra::rg
+} // namespace vrendergraph

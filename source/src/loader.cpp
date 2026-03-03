@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     static std::unordered_map<std::string, std::string> parseSlotMap(const nlohmann::json& j, const char* key)
     {
@@ -65,4 +65,4 @@ namespace vultra::rg
 
         return desc;
     }
-} // namespace vultra::rg
+} // namespace vrendergraph

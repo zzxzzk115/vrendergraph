@@ -6,7 +6,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     class PassBuildContext
     {
@@ -42,4 +42,4 @@ namespace vultra::rg
         const std::unordered_map<std::string, FrameGraphResource>& m_Inputs;
         std::unordered_map<std::string, FrameGraphResource>&       m_Outputs;
     };
-} // namespace vultra::rg
+} // namespace vrendergraph

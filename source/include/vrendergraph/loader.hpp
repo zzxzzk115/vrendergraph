@@ -4,7 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     RenderGraphDesc loadRenderGraph(const nlohmann::json& j);
 }

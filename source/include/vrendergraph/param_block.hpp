@@ -4,7 +4,7 @@
 
 #include <string_view>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     class ParamBlock
     {
@@ -26,4 +26,4 @@ namespace vultra::rg
     private:
         nlohmann::json m_Data;
     };
-} // namespace vultra::rg
+} // namespace vrendergraph

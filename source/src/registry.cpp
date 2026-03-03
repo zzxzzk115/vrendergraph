@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     void RenderGraphRegistry::registerPass(PassDefinition def) { m_Definitions.emplace(def.type, std::move(def)); }
 
@@ -18,4 +18,4 @@ namespace vultra::rg
     {
         return m_Definitions.contains(std::string(type));
     }
-} // namespace vultra::rg
+} // namespace vrendergraph

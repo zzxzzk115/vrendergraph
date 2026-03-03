@@ -11,7 +11,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     using PassSetupFn = std::function<void(FrameGraph&, FrameGraphBlackboard&, const ParamBlock&, PassBuildContext&)>;
 
@@ -31,4 +31,4 @@ namespace vultra::rg
     private:
         std::unordered_map<std::string, PassDefinition> m_Definitions;
     };
-} // namespace vultra::rg
+} // namespace vrendergraph

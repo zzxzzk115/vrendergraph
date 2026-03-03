@@ -91,9 +91,9 @@ public:
             bb.add<GBufferData>() = pass;
     }
 
-    static void registerSelf(vultra::rg::RenderGraphRegistry& registry, GBufferPass& self)
+    static void registerSelf(vrendergraph::RenderGraphRegistry& registry, GBufferPass& self)
     {
-        using namespace vultra::rg;
+        using namespace vrendergraph;
 
         registry.registerPass(
             {.type  = "gbuffer",
@@ -143,9 +143,9 @@ public:
             bb.add<SceneColorData>() = pass;
     }
 
-    static void registerSelf(vultra::rg::RenderGraphRegistry& registry, LightingPass& self)
+    static void registerSelf(vrendergraph::RenderGraphRegistry& registry, LightingPass& self)
     {
-        using namespace vultra::rg;
+        using namespace vrendergraph;
 
         registry.registerPass(
             {.type = "lighting",
@@ -202,9 +202,9 @@ public:
         bb.get<SceneColorData>() = out;
     }
 
-    static void registerSelf(vultra::rg::RenderGraphRegistry& registry, ToneMappingPass& self)
+    static void registerSelf(vrendergraph::RenderGraphRegistry& registry, ToneMappingPass& self)
     {
-        using namespace vultra::rg;
+        using namespace vrendergraph;
 
         registry.registerPass(
             {.type  = "tonemap",
@@ -255,9 +255,9 @@ public:
         bb.get<SceneColorData>() = out;
     }
 
-    static void registerSelf(vultra::rg::RenderGraphRegistry& registry, FXAAPass& self)
+    static void registerSelf(vrendergraph::RenderGraphRegistry& registry, FXAAPass& self)
     {
-        using namespace vultra::rg;
+        using namespace vrendergraph;
 
         registry.registerPass(
             {.type  = "fxaa",
@@ -294,9 +294,9 @@ public:
             [](const int&, FrameGraphPassResources&, void*) { std::cout << "[Present]\n"; });
     }
 
-    static void registerSelf(vultra::rg::RenderGraphRegistry& registry, PresentPass& self)
+    static void registerSelf(vrendergraph::RenderGraphRegistry& registry, PresentPass& self)
     {
-        using namespace vultra::rg;
+        using namespace vrendergraph;
 
         registry.registerPass(
             {.type  = "present",
@@ -348,7 +348,7 @@ int main(int argc, char** argv)
         const std::string scenePath = (argc >= 2) ? argv[1] : "scene.json";
 
         auto j    = loadJsonFile(scenePath);
-        auto desc = vultra::rg::loadRenderGraph(j);
+        auto desc = vrendergraph::loadRenderGraph(j);
 
         FrameGraph           fg;
         FrameGraphBlackboard bb;
@@ -369,7 +369,7 @@ int main(int argc, char** argv)
         };
 
         // Register passes
-        vultra::rg::RenderGraphRegistry registry;
+        vrendergraph::RenderGraphRegistry registry;
 
         GBufferPass     gbuffer;
         LightingPass    lighting;
@@ -384,7 +384,7 @@ int main(int argc, char** argv)
         PresentPass::registerSelf(registry, present);
 
         // Build graph
-        vultra::rg::RenderGraph rg(registry, importer);
+        vrendergraph::RenderGraph rg(registry, importer);
         rg.build(fg, bb, desc);
 
         fg.compile();

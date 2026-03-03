@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace vultra::rg
+namespace vrendergraph
 {
     struct ResourceDecl
     {
@@ -34,4 +34,4 @@ namespace vultra::rg
         std::vector<ResourceDecl> resources;
         std::vector<PassDecl>     passes;
     };
-} // namespace vultra::rg
+} // namespace vrendergraph
