@@ -1,0 +1,64 @@
+{
+  "resources": {
+    "backbuffer": {
+      "imported": true,
+      "width": 1280,
+      "height": 720,
+      "backbuffer_id": 777
+    }
+  },
+
+  "passes": [
+    {
+      "type": "gbuffer",
+      "outputs": {
+        "albedo": "gbuf.albedo",
+        "normal": "gbuf.normal",
+        "depth":  "gbuf.depth"
+      }
+    },
+
+    {
+      "type": "lighting",
+      "inputs": {
+        "albedo": "gbuf.albedo",
+        "normal": "gbuf.normal",
+        "depth":  "gbuf.depth"
+      },
+      "outputs": {
+        "hdr": "scene.hdr"
+      }
+    },
+
+    {
+      "type": "tonemap",
+      "inputs": {
+        "hdr": "scene.hdr"
+      },
+      "outputs": {
+        "ldr": "scene.ldr"
+      }
+    },
+
+    {
+      "type": "fxaa",
+      "inputs": {
+        "input": "scene.ldr"
+      },
+      "outputs": {
+        "output": "scene.final"
+      }
+    },
+
+    {
+      "type": "present",
+      "inputs": {
+        "color": "scene.final",
+        "backbuffer": "backbuffer"
+      },
+      "outputs": {
+        "backbuffer": "backbuffer"
+      }
+    }
+  ]
+}
