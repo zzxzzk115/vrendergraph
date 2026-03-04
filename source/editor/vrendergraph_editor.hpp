@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <format>
 #include <functional>
 #include <optional>
 #include <string>
