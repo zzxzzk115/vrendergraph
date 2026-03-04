@@ -17,16 +17,19 @@ namespace vrendergraph
 
     struct PassDefinition
     {
-        std::string type;
-        PassSetupFn setup;
+        std::string              type;
+        PassSetupFn              setup;
+        std::vector<std::string> inputs;  // slot names
+        std::vector<std::string> outputs; // slot names
     };
 
     class RenderGraphRegistry
     {
     public:
-        void                  registerPass(PassDefinition def);
-        const PassDefinition& get(std::string_view type) const;
-        bool                  contains(std::string_view type) const;
+        void                     registerPass(PassDefinition def);
+        const PassDefinition&    get(std::string_view type) const;
+        bool                     contains(std::string_view type) const;
+        std::vector<std::string> listTypes() const;
 
     private:
         std::unordered_map<std::string, PassDefinition> m_Definitions;

@@ -1,0 +1,72 @@
+{
+  "resources": {
+    "@backbuffer": {
+      "imported": true,
+      "width": 1280,
+      "height": 720,
+      "backbuffer_id": 777
+    }
+  },
+  "passes": [
+    {
+      "id": "depth",
+      "type": "depth_pre",
+      "outputs": {
+        "depth": "depth.depth"
+      }
+    },
+    {
+      "id": "gbuffer",
+      "type": "gbuffer",
+      "inputs": {
+        "depth": "depth.depth"
+      },
+      "outputs": {
+        "gbuffer": "gbuffer.gbuffer"
+      }
+    },
+    {
+      "id": "lighting",
+      "type": "lighting",
+      "inputs": {
+        "gbuffer": "gbuffer.gbuffer"
+      },
+      "outputs": {
+        "hdr": "lighting.hdr"
+      }
+    },
+    {
+      "id": "tonemap",
+      "type": "tonemap",
+      "inputs": {
+        "hdr": "lighting.hdr"
+      },
+      "outputs": {
+        "ldr": "tonemap.ldr"
+      }
+    },
+    {
+      "id": "present",
+      "type": "present",
+      "inputs": {
+        "color": "tonemap.ldr",
+        "backbuffer": "@backbuffer"
+      }
+    }
+  ],
+  "meta": {
+    "editor": {
+      "nodes": {
+        "depth": { "pos": [80, 120] },
+        "gbuffer": { "pos": [320, 120] },
+        "lighting": { "pos": [560, 120] },
+        "tonemap": { "pos": [800, 120] },
+        "present": { "pos": [1040, 120] }
+      },
+      "view": {
+        "zoom": 1.0,
+        "pan": [0, 0]
+      }
+    }
+  }
+}

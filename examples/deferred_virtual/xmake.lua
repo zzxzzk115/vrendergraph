@@ -8,3 +8,6 @@ target("vrendergraph_example_deferred_virtual")
 	after_build(function (target)
 		os.cp("$(scriptdir)/scene.json", path.join(target:targetdir(), "scene.json"))
 	end)
+
+	-- set target directory
+    set_targetdir("$(builddir)/$(plat)/$(arch)/$(mode)/vrendergraph_example_deferred_virtual")

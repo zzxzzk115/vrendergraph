@@ -23,17 +23,14 @@
 #include "vrendergraph/render_graph_desc.hpp"
 
 #include <imgui.h>
-#include <imgui_node_editor.h>
+#include <imgui_node_editor/imgui_node_editor.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
-#include <utility>
 #include <vector>
 
 namespace vrendergraph::editor
@@ -69,7 +66,10 @@ namespace vrendergraph::editor
             if (captureSnapshot)
                 captureSnapshot();
         }
-        explicit operator bool() const { return (bool)captureSnapshot || (bool)beginAction || (bool)endAction; }
+        explicit operator bool() const
+        {
+            return static_cast<bool>(captureSnapshot) || static_cast<bool>(beginAction) || static_cast<bool>(endAction);
+        }
     };
 
     // ---------------------------------------------------------------------
@@ -113,7 +113,7 @@ namespace vrendergraph::editor
         struct Config
         {
             // Optional external undo manager hooks.
-            UndoInterface undo;
+            UndoInterface undo {};
 
             // If null, RenderGraphEditor will create an internal node editor context.
             // If provided, RenderGraphEditor will use it (and not destroy it).
@@ -123,7 +123,7 @@ namespace vrendergraph::editor
             std::string metaKey = "editor";
         };
 
-        explicit RenderGraphEditor(const RenderGraphRegistry& registry, Config cfg = {});
+        explicit RenderGraphEditor(const RenderGraphRegistry& registry, Config* cfg = nullptr);
         ~RenderGraphEditor();
 
         RenderGraphEditor(const RenderGraphEditor&)            = delete;
@@ -242,6 +242,7 @@ namespace vrendergraph::editor
         // ids
         std::unordered_map<std::string, int>                  m_NodeIds;
         std::unordered_map<PinKey, int, PinKeyHash, PinKeyEq> m_PinIds;
+        std::unordered_map<std::string, int>                  m_ResourceNodeIds;
 
         // popup
         bool m_OpenCreatePopup = false;
@@ -250,6 +251,8 @@ namespace vrendergraph::editor
 } // namespace vrendergraph::editor
 
 #ifdef VRENDERGRAPH_EDITOR_IMPLEMENTATION
+
+#include <unordered_set>
 
 namespace vrendergraph::editor
 {
@@ -370,8 +373,8 @@ namespace vrendergraph::editor
         return h;
     }
 
-    RenderGraphEditor::RenderGraphEditor(const RenderGraphRegistry& registry, Config cfg) :
-        m_Registry(registry), m_Cfg(std::move(cfg))
+    RenderGraphEditor::RenderGraphEditor(const RenderGraphRegistry& registry, Config* cfg) :
+        m_Registry(registry), m_Cfg(cfg ? *cfg : Config {})
     {
         if (m_Cfg.nodeEditorContext)
         {
@@ -434,7 +437,8 @@ namespace vrendergraph::editor
                 NodeUiState& st = m_Ui.nodes[p.id];
                 st.pos          = ed::GetNodePosition(ed::NodeId(nid));
                 st.hasPos       = true;
-                st.collapsed    = ed::IsNodeCollapsed(ed::NodeId(nid));
+                // NodeEditor currently doesn't expose collapse state
+                st.collapsed = false;
             }
         }
 
@@ -556,6 +560,14 @@ namespace vrendergraph::editor
         p.type    = std::string(type);
         p.id      = allocPassId(type);
         p.enabled = true;
+
+        // auto-create slots from registry
+        auto def = m_Registry.get(type);
+        for (auto& in : def.inputs)
+            p.inputs[in] = "";
+        for (auto& out : def.outputs)
+            p.outputs[out] = p.id + "." + out;
+
         m_Graph->passes.push_back(std::move(p));
 
         // Give it a default position near the mouse.
@@ -601,7 +613,16 @@ namespace vrendergraph::editor
     {
         const auto dot = s.find('.');
         if (dot == std::string_view::npos)
+        {
+            if (!s.empty() && s[0] == '@')
+            {
+                ResRef r;
+                r.passId = std::string(s);
+                r.slot   = "out";
+                return r;
+            }
             return std::nullopt;
+        }
         if (dot == 0 || dot + 1 >= s.size())
             return std::nullopt;
         ResRef r;
@@ -834,6 +855,40 @@ namespace vrendergraph::editor
     {
         ed::Begin("Canvas", ImVec2(0, 0));
 
+        // Create resource nodes (permanent)
+        if (m_Graph && !m_Graph->resources.empty())
+        {
+            for (const auto& [name, _, __] : m_Graph->resources)
+            {
+                int nid;
+
+                auto it = m_ResourceNodeIds.find(name);
+                if (it == m_ResourceNodeIds.end())
+                {
+                    nid                     = int(fnv1a32(std::string("res:") + name));
+                    m_ResourceNodeIds[name] = nid;
+                }
+                else
+                {
+                    nid = it->second;
+                }
+
+                ed::BeginNode(ed::NodeId(nid));
+
+                ImGui::TextDisabled("%s", name.c_str());
+                ImGui::Separator();
+
+                PinKey pk {name, "out", false};
+                int    pid = ensurePinId(pk);
+
+                ed::BeginPin(ed::PinId(pid), ed::PinKind::Output);
+                ImGui::Text("out");
+                ed::EndPin();
+
+                ed::EndNode();
+            }
+        }
+
         // Create nodes
         for (auto& p : m_Graph->passes)
         {
@@ -841,21 +896,19 @@ namespace vrendergraph::editor
             ed::BeginNode(ed::NodeId(nid));
 
             // header
-            ImGui::TextUnformatted(p.id.c_str());
-            ImGui::SameLine();
-            ImGui::TextDisabled("[%s]", p.type.c_str());
+            ImGui::Text("%s", p.id.c_str());
+            ImGui::TextDisabled("%s", p.type.c_str());
             ImGui::Separator();
 
             // inputs
             for (const auto& [slot, src] : p.inputs)
             {
-                PinKey    pk {p.id, slot, true};
-                const int pid = ensurePinId(pk);
+                PinKey pk {p.id, slot, true};
+                int    pid = ensurePinId(pk);
+
                 ed::BeginPin(ed::PinId(pid), ed::PinKind::Input);
                 ImGui::Text("%s", slot.c_str());
                 ed::EndPin();
-                ImGui::SameLine();
-                ImGui::TextDisabled("%s", src.c_str());
             }
 
             ImGui::Spacing();
@@ -863,13 +916,16 @@ namespace vrendergraph::editor
             // outputs
             for (const auto& [slot, res] : p.outputs)
             {
-                PinKey    pk {p.id, slot, false};
-                const int pid = ensurePinId(pk);
+                PinKey pk {p.id, slot, false};
+                int    pid = ensurePinId(pk);
+
                 ed::BeginPin(ed::PinId(pid), ed::PinKind::Output);
+
+                ImGui::Indent(40);
                 ImGui::Text("%s", slot.c_str());
+                ImGui::Unindent(40);
+
                 ed::EndPin();
-                ImGui::SameLine();
-                ImGui::TextDisabled("%s", res.c_str());
             }
 
             ed::EndNode();
@@ -894,9 +950,27 @@ namespace vrendergraph::editor
                 auto rr = parseResRef(srcRef);
                 if (!rr)
                     continue;
-                const auto* srcPass = findPass(rr->passId);
-                if (!srcPass)
-                    continue;
+
+                // allow resource nodes
+                bool isResource = false;
+
+                if (!findPass(rr->passId))
+                {
+                    if (m_Graph)
+                    {
+                        for (const auto& r : m_Graph->resources)
+                        {
+                            if (r.name == rr->passId)
+                            {
+                                isResource = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!isResource)
+                        continue;
+                }
 
                 PinKey    from {rr->passId, rr->slot, false};
                 PinKey    to {p.id, inSlot, true};
@@ -909,20 +983,22 @@ namespace vrendergraph::editor
             }
         }
 
-        // Interaction: selection
-        if (ed::HasSelectionChanged())
+        // Interaction: selection (poll every frame)
+        m_SelectedPassId.clear();
+
+        ed::NodeId nodes[1];
+        int        count = ed::GetSelectedNodes(nodes, 1);
+
+        if (count > 0)
         {
-            ed::NodeId sel;
-            if (ed::GetSelectedNodes(&sel, 1) == 1)
+            int nodeId = nodes[0].Get();
+
+            for (auto& [pid, nid] : m_NodeIds)
             {
-                // map node id back to passId
-                for (auto& [pid, nid] : m_NodeIds)
+                if (nid == nodeId)
                 {
-                    if (nid == (int)sel.Get())
-                    {
-                        m_SelectedPassId = pid;
-                        break;
-                    }
+                    m_SelectedPassId = pid;
+                    break;
                 }
             }
         }
@@ -1008,7 +1084,19 @@ namespace vrendergraph::editor
                     for (auto& [pid, nid] : m_NodeIds)
                         if (nid == (int)nodeId.Get())
                             passId = pid;
-                    if (!passId.empty())
+
+                    // check resource node
+                    bool isResource = false;
+                    for (auto& [rid, nid] : m_ResourceNodeIds)
+                    {
+                        if (nid == (int)nodeId.Get())
+                        {
+                            isResource = true;
+                            break;
+                        }
+                    }
+
+                    if (!passId.empty() && !isResource)
                         removePass(passId);
                 }
             }

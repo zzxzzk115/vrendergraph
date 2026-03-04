@@ -18,4 +18,15 @@ namespace vrendergraph
     {
         return m_Definitions.contains(std::string(type));
     }
+
+    std::vector<std::string> RenderGraphRegistry::listTypes() const
+    {
+        std::vector<std::string> out;
+        out.reserve(m_Definitions.size());
+
+        for (const auto& [type, _] : m_Definitions)
+            out.push_back(type);
+
+        return out;
+    }
 } // namespace vrendergraph
