@@ -24,6 +24,10 @@ namespace vrendergraph
     {
         RenderGraphDesc desc;
 
+        // Optional metadata for editor/tools.
+        if (j.contains("meta"))
+            desc.meta = j.at("meta");
+
         if (j.contains("resources"))
         {
             const auto& res = j.at("resources");
@@ -64,5 +68,48 @@ namespace vrendergraph
         }
 
         return desc;
+    }
+
+    nlohmann::json saveRenderGraph(const RenderGraphDesc& desc)
+    {
+        nlohmann::json j;
+
+        if (!desc.resources.empty())
+        {
+            nlohmann::json rj = nlohmann::json::object();
+            for (const auto& r : desc.resources)
+            {
+                // Preserve opaque desc block, but ensure the name key is stable.
+                nlohmann::json obj = r.desc;
+                obj["imported"]    = r.imported;
+                rj[r.name]         = std::move(obj);
+            }
+            j["resources"] = std::move(rj);
+        }
+
+        nlohmann::json passes = nlohmann::json::array();
+        for (const auto& p : desc.passes)
+        {
+            nlohmann::json pj;
+            pj["id"]      = p.id;
+            pj["type"]    = p.type;
+            pj["enabled"] = p.enabled;
+
+            if (!p.inputs.empty())
+                pj["inputs"] = p.inputs;
+            if (!p.outputs.empty())
+                pj["outputs"] = p.outputs;
+
+            if (!p.params.raw().is_null() && !p.params.raw().empty())
+                pj["params"] = p.params.raw();
+
+            passes.push_back(std::move(pj));
+        }
+        j["passes"] = std::move(passes);
+
+        if (!desc.meta.is_null() && !desc.meta.empty())
+            j["meta"] = desc.meta;
+
+        return j;
     }
 } // namespace vrendergraph

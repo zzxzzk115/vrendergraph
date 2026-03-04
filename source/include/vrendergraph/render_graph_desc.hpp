@@ -33,5 +33,10 @@ namespace vrendergraph
     {
         std::vector<ResourceDecl> resources;
         std::vector<PassDecl>     passes;
+
+        // Optional editor/runtime metadata.
+        // - Runtime systems should ignore this field.
+        // - Tools/editors can store node positions, zoom/pan, custom UI state, etc.
+        nlohmann::json meta;
     };
 } // namespace vrendergraph
