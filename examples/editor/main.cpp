@@ -19,6 +19,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -232,7 +233,12 @@ public:
         registry.registerPass({
             .type = "Tonemap",
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& paramBlock, PassBuildContext& ctx) {
+                    auto exposure = paramBlock.get<float>("exposure", 1.0f);
+                    auto aces     = paramBlock.get<bool>("aces", false);
+                    std::cout << "ToneMappingPass param: exposure = " << exposure
+                              << ", aces = " << (aces ? "true" : "false") << "\n";
+
                     SceneColorData sc {};
                     sc.hdr = ctx.getInput("hdr");
 
@@ -248,7 +254,7 @@ public:
 
                     const auto& pass = fg.addCallbackPass<Data>(
                         "ToneMappingPass",
-                        [sc](FrameGraph::Builder& builder, Data& data) {
+                        [sc, exposure](FrameGraph::Builder& builder, Data& data) {
                             builder.read(sc.hdr);
 
                             data.ldr = builder.create<FakeTexture>("SceneLDR", {1280, 720});
@@ -261,6 +267,17 @@ public:
                 },
             .inputs  = {"hdr"},
             .outputs = {"ldr"},
+            .params =
+                {
+                    {
+                        .name         = "exposure",
+                        .type         = ParamType::eFloat,
+                        .defaultValue = 1.0f,
+                        .minValue     = 0.0f,
+                        .maxValue     = 5.0f,
+                    },
+                    {.name = "aces", .type = ParamType::eBoolean, .defaultValue = false},
+                },
         });
     }
 };
@@ -430,11 +447,24 @@ int main()
 
             try
             {
+                // Calculate the time to build + execute the graph, which includes running all setup() functions and
+                // callbacks.
+
+                // Unit: microseconds (us)
+                auto start = std::chrono::high_resolution_clock::now();
+
                 rg.build(fg, bb, *editor.graph());
                 fg.compile();
 
+#ifndef NDEBUG
                 std::ofstream("rendergraph.dot") << fg;
+#endif
+
                 fg.execute();
+
+                auto end  = std::chrono::high_resolution_clock::now();
+                auto diff = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                std::cout << "RenderGraph execution time: " << diff << " us\n";
             }
             catch (const std::exception& e)
             {

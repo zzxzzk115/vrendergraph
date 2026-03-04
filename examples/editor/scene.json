@@ -64,6 +64,10 @@
       "outputs": {
         "ldr": "Tonemap.ldr"
       },
+      "params": {
+        "aces": true,
+        "exposure": 1.05
+      },
       "type": "Tonemap"
     },
     {

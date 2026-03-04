@@ -176,7 +176,8 @@ namespace vrendergraph::editor
         const RenderGraphDesc* graph()
         {
             std::string error;
-            applyTopoOrder(&error);
+            if (m_Dirty)
+                applyTopoOrder(&error);
             return m_Graph;
         }
 
@@ -672,6 +673,12 @@ namespace vrendergraph::editor
         for (auto& out : def.outputs)
             p.outputs[out] = p.id + "." + out;
 
+        // initialize default params
+        for (auto& param : def.params)
+        {
+            p.params.raw()[param.name] = param.defaultValue;
+        }
+
         m_Graph->passes.push_back(std::move(p));
 
         const std::string& newId = m_Graph->passes.back().id;
@@ -1130,13 +1137,184 @@ namespace vrendergraph::editor
         {
             const int nid = ensureNodeId(p.id);
 
+            const float node_width = 140.0f;
+
             ImNodes::BeginNode(nid);
 
+            // -------------------------------------------------------------
+            // Title
+            // -------------------------------------------------------------
             ImNodes::BeginNodeTitleBar();
-            ImGui::Text("%s", p.id.c_str());
+            ImGui::TextUnformatted(p.id.c_str());
             ImNodes::EndNodeTitleBar();
 
-            // inputs (fixed by registry)
+            // enforce consistent width
+            ImGui::Dummy(ImVec2(node_width, 0.f));
+
+            // -------------------------------------------------------------
+            // Parameters
+            // -------------------------------------------------------------
+            auto def = m_Registry.get(p.type);
+
+            for (auto& param : def.params)
+            {
+                auto& j = p.params.raw();
+
+                if (!j.contains(param.name))
+                    j[param.name] = param.defaultValue;
+
+                if (param.type == ParamType::eFloat)
+                {
+                    float v = j[param.name];
+
+                    // Support optional min/max for better UX, but allow unbounded values by default.
+                    std::optional<float> min, max;
+                    if (param.minValue.has_value())
+                    {
+                        min = param.minValue.value();
+                    }
+                    if (param.maxValue.has_value())
+                    {
+                        max = param.maxValue.value();
+                    }
+
+                    const float label_width = ImGui::CalcTextSize(param.name.c_str()).x;
+
+                    ImGui::TextUnformatted(param.name.c_str());
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth(node_width - label_width - 12.f);
+
+                    bool changed = false;
+                    if (min.has_value() && max.has_value())
+                    {
+                        changed = ImGui::DragFloat("##param_float_value", &v, 0.01f, min.value(), max.value());
+                    }
+                    else
+                    {
+                        changed = ImGui::DragFloat("##param_float_value", &v, 0.01f);
+                    }
+
+                    if (changed)
+                    {
+                        beginUndoAction();
+                        m_Cfg.undo.snapshot();
+
+                        j[param.name] = v;
+                        m_Dirty       = true;
+
+                        commitUndoAction();
+                    }
+
+                    ImGui::PopItemWidth();
+                }
+                else if (param.type == ParamType::eInt)
+                {
+                    int v = j[param.name];
+
+                    // Support optional min/max for better UX, but allow unbounded values by default.
+                    std::optional<int> min, max;
+                    if (param.minValue.has_value())
+                    {
+                        min = int(param.minValue.value());
+                    }
+                    if (param.maxValue.has_value())
+                    {
+                        max = int(param.maxValue.value());
+                    }
+
+                    const float label_width = ImGui::CalcTextSize(param.name.c_str()).x;
+
+                    ImGui::TextUnformatted(param.name.c_str());
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth(node_width - label_width - 12.f);
+
+                    bool changed = false;
+                    if (min.has_value() && max.has_value())
+                    {
+                        changed = ImGui::DragInt("##value", &v, 1, min.value(), max.value());
+                    }
+                    else
+                    {
+                        changed = ImGui::DragInt("##param_int_value", &v, 1);
+                    }
+
+                    if (changed)
+                    {
+                        beginUndoAction();
+                        m_Cfg.undo.snapshot();
+
+                        j[param.name] = v;
+                        m_Dirty       = true;
+
+                        commitUndoAction();
+                    }
+
+                    ImGui::PopItemWidth();
+                }
+                else if (param.type == ParamType::eBoolean)
+                {
+                    bool v = j[param.name];
+
+                    const float label_width = ImGui::CalcTextSize(param.name.c_str()).x;
+
+                    ImGui::TextUnformatted(param.name.c_str());
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth(node_width - label_width - 12.f);
+
+                    bool changed = ImGui::Checkbox("##param_boolean_value", &v);
+
+                    if (changed)
+                    {
+                        beginUndoAction();
+                        m_Cfg.undo.snapshot();
+
+                        j[param.name] = v;
+                        m_Dirty       = true;
+
+                        commitUndoAction();
+                    }
+
+                    ImGui::PopItemWidth();
+                }
+                else if (param.type == ParamType::eString)
+                {
+                    std::string v = j[param.name];
+
+                    const float label_width = ImGui::CalcTextSize(param.name.c_str()).x;
+
+                    ImGui::TextUnformatted(param.name.c_str());
+                    ImGui::SameLine();
+
+                    ImGui::PushItemWidth(node_width - label_width - 12.f);
+
+                    char buf[256];
+                    std::strncpy(buf, v.c_str(), sizeof(buf));
+                    bool changed = ImGui::InputText("##param_str_value", buf, sizeof(buf));
+
+                    if (changed)
+                    {
+                        beginUndoAction();
+                        m_Cfg.undo.snapshot();
+
+                        j[param.name] = std::string(buf);
+                        m_Dirty       = true;
+
+                        commitUndoAction();
+                    }
+
+                    ImGui::PopItemWidth();
+                }
+            }
+
+            if (!def.params.empty())
+                ImGui::Spacing();
+
+            // -------------------------------------------------------------
+            // Inputs
+            // -------------------------------------------------------------
             for (const auto& [slot, src] : p.inputs)
             {
                 (void)src;
@@ -1145,13 +1323,18 @@ namespace vrendergraph::editor
                 int    pid = ensurePinId(pk);
 
                 ImNodes::BeginInputAttribute(pid, ImNodesPinShape_CircleFilled);
+
                 ImGui::TextUnformatted(slot.c_str());
+
                 ImNodes::EndInputAttribute();
             }
 
-            ImGui::Spacing();
+            if (!p.inputs.empty())
+                ImGui::Spacing();
 
-            // outputs (fixed by registry)
+            // -------------------------------------------------------------
+            // Outputs
+            // -------------------------------------------------------------
             for (const auto& [slot, res] : p.outputs)
             {
                 (void)res;
@@ -1159,22 +1342,27 @@ namespace vrendergraph::editor
                 PinKey pk {p.id, slot, false};
                 int    pid = ensurePinId(pk);
 
+                const float label_width = ImGui::CalcTextSize(slot.c_str()).x;
+
                 ImNodes::BeginOutputAttribute(pid, ImNodesPinShape_CircleFilled);
-                ImGui::Indent(40);
+
+                ImGui::Indent(node_width - label_width);
                 ImGui::TextUnformatted(slot.c_str());
-                ImGui::Unindent(40);
+
                 ImNodes::EndOutputAttribute();
             }
 
             ImNodes::EndNode();
 
-            // Apply meta position once
+            // -------------------------------------------------------------
+            // Apply saved position
+            // -------------------------------------------------------------
             if (auto it = m_Ui.nodes.find(p.id); it != m_Ui.nodes.end())
             {
                 if (it->second.hasPos)
                 {
                     ImNodes::SetNodeGridSpacePos(nid, it->second.pos);
-                    it->second.hasPos = false; // apply once
+                    it->second.hasPos = false;
                 }
             }
         }

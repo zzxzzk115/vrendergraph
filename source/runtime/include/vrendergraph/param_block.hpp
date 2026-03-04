@@ -22,6 +22,7 @@ namespace vrendergraph
 
         bool                  has(std::string_view key) const;
         const nlohmann::json& raw() const noexcept { return m_Data; }
+        nlohmann::json&       raw() noexcept { return m_Data; }
 
     private:
         nlohmann::json m_Data;
