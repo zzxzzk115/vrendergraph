@@ -3,19 +3,22 @@
     "editor": {
       "nodes": {
         "Depth_Pre": {
-          "pos": [8.0, 290.0]
+          "pos": [-38.0, 105.99998474121094]
         },
         "GBuffer": {
-          "pos": [227.0, 171.99998474121094]
+          "pos": [140.99945068359375, 202.8426971435547]
         },
         "Lighting": {
-          "pos": [461.0, 326.0]
+          "pos": [568.9994506835938, 287.84271240234375]
         },
         "Present": {
-          "pos": [1040.0, 120.0]
+          "pos": [984.9999389648438, 127.99998474121094]
+        },
+        "SSAO": {
+          "pos": [370.99945068359375, 148.8426971435547]
         },
         "Tonemap": {
-          "pos": [730.0, 204.0]
+          "pos": [771.0, 217.99998474121094]
         }
       },
       "view": {
@@ -40,15 +43,32 @@
         "depth": "Depth_Pre.depth"
       },
       "outputs": {
-        "gbuffer": "GBuffer.gbuffer"
+        "gAlbedo": "GBuffer.gAlbedo",
+        "gNormal": "GBuffer.gNormal",
+        "gPosition": "GBuffer.gPosition"
       },
       "type": "GBuffer"
     },
     {
       "enabled": true,
+      "id": "SSAO",
+      "inputs": {
+        "gNormal": "GBuffer.gNormal",
+        "gPosition": "GBuffer.gPosition"
+      },
+      "outputs": {
+        "ao": "SSAO.ao"
+      },
+      "type": "SSAO"
+    },
+    {
+      "enabled": true,
       "id": "Lighting",
       "inputs": {
-        "gbuffer": "GBuffer.gbuffer"
+        "ao": "SSAO.ao",
+        "gAlbedo": "GBuffer.gAlbedo",
+        "gNormal": "GBuffer.gNormal",
+        "gPosition": "GBuffer.gPosition"
       },
       "outputs": {
         "hdr": "Lighting.hdr"
@@ -80,12 +100,5 @@
       "type": "Present"
     }
   ],
-  "resources": {
-    "@backbuffer": {
-      "backbuffer_id": 777,
-      "height": 720,
-      "imported": true,
-      "width": 1280
-    }
-  }
+  "resources": ["@backbuffer"]
 }

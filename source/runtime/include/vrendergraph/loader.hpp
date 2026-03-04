@@ -11,7 +11,7 @@ namespace vrendergraph
     // Serialize to JSON.
     // Notes:
     // - Always writes: passes[]
-    // - Writes resources{} only if non-empty
+    // - Writes resources[] only if non-empty
     // - Writes meta{} only if non-empty
     nlohmann::json saveRenderGraph(const RenderGraphDesc& desc);
 } // namespace vrendergraph

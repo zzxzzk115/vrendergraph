@@ -10,6 +10,8 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace vrendergraph
 {
@@ -49,7 +51,17 @@ namespace vrendergraph
         bool                     contains(std::string_view type) const;
         std::vector<std::string> listTypes() const;
 
+        // -----------------------------------------------------------------
+        // External resources (engine-owned)
+        // -----------------------------------------------------------------
+        // Register a named external resource that can be referenced in RenderGraphDesc.
+        // This is primarily used by tools/editors to present an Add-Resource menu.
+        void                     registerResource(std::string name);
+        bool                     containsResource(std::string_view name) const;
+        std::vector<std::string> listResources() const;
+
     private:
         std::unordered_map<std::string, PassDefinition> m_Definitions;
+        std::unordered_set<std::string>                 m_Resources;
     };
 } // namespace vrendergraph

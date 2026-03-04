@@ -1,6 +1,7 @@
 #include "vrendergraph/render_graph.hpp"
 
 #include <stdexcept>
+#include <unordered_map>
 
 namespace vrendergraph
 {
@@ -13,16 +14,13 @@ namespace vrendergraph
         std::unordered_map<std::string, FrameGraphResource> resourceTable;
         resourceTable.reserve(desc.resources.size() + desc.passes.size() * 4);
 
-        // 1) Import declared resources
+        // 1) Import declared external resources
         for (const auto& r : desc.resources)
         {
-            if (!r.imported)
-                continue;
-
             if (!m_Importer)
-                throw std::runtime_error("vrendergraph: importer is not set, but imported resources exist");
+                throw std::runtime_error("vrendergraph: importer is not set, but external resources exist");
 
-            FrameGraphResource handle = m_Importer(fg, r.name, r.desc);
+            FrameGraphResource handle = m_Importer(fg, r.name);
             if (!fg.isValid(handle))
                 throw std::runtime_error("vrendergraph: importer returned invalid resource for: " + r.name);
 

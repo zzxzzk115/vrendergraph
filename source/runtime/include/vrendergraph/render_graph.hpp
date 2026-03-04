@@ -10,8 +10,7 @@
 
 namespace vrendergraph
 {
-    using ImportFn = std::function<
-        FrameGraphResource(FrameGraph&, std::string_view resourceName, const nlohmann::json& resourceDesc)>;
+    using ImportFn = std::function<FrameGraphResource(FrameGraph&, std::string_view resourceName)>;
 
     class RenderGraph
     {

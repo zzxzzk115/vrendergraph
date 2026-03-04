@@ -322,14 +322,10 @@ int main(int argc, char** argv)
         FrameGraphBlackboard bb;
 
         // Importer
-        auto importer = [](FrameGraph& fg, std::string_view name, const nlohmann::json& rdesc) -> FrameGraphResource {
+        auto importer = [](FrameGraph& fg, std::string_view name) -> FrameGraphResource {
             if (name == "backbuffer")
             {
                 FakeTexture::Desc d;
-                d.width  = rdesc.value("width", 1280);
-                d.height = rdesc.value("height", 720);
-                int id   = rdesc.value("backbuffer_id", 777);
-
                 return fg.import(std::string(name), d, FakeTexture {});
             }
 

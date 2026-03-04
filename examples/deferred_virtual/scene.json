@@ -51,12 +51,5 @@
       "type": "Present"
     }
   ],
-  "resources": {
-    "backbuffer": {
-      "backbuffer_id": 777,
-      "height": 720,
-      "imported": true,
-      "width": 1280
-    }
-  }
+  "resources": ["backbuffer"]
 }

@@ -11,9 +11,11 @@ namespace vrendergraph
 {
     struct ResourceDecl
     {
-        std::string    name;
-        bool           imported = false;
-        nlohmann::json desc; // opaque (backend/app interprets)
+        // External engine-owned resource identifier.
+        //
+        // RenderGraph only records the name; the actual handle is provided at build time
+        // through RenderGraph::ImportFn.
+        std::string name;
     };
 
     struct PassDecl

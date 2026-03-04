@@ -263,6 +263,10 @@ namespace vrendergraph::editor
         void        addPass(std::string_view type);
         void        removePass(std::string_view passId);
 
+        // Resource nodes
+        void addResource(std::string_view name);
+        void removeResource(std::string_view name);
+
         // Link create/delete
         struct ResRef
         {
@@ -434,6 +438,102 @@ namespace vrendergraph::editor
             desc.meta["editor"] = std::move(ej);
         else if (desc.meta.contains("editor"))
             desc.meta.erase("editor");
+    }
+
+    // ---------------------------------------------------------------------
+    // Node style helpers
+    // ---------------------------------------------------------------------
+
+    static ImU32 nodeColorFromType(std::string_view type, bool isResource = false)
+    {
+        // Resource nodes → fixed orange
+        if (isResource)
+            return IM_COL32(230, 140, 40, 255);
+
+        // Contains depth -> fixed gray
+        // convert to lowercase for case-insensitive search
+        std::string typeLower(type);
+        std::transform(
+            typeLower.begin(), typeLower.end(), typeLower.begin(), [](unsigned char c) { return std::tolower(c); });
+        if (typeLower.find("depth") != std::string_view::npos)
+            return IM_COL32(180, 180, 180, 255);
+
+        // Present → fixed green
+        if (type == "Present")
+            return IM_COL32(80, 200, 120, 255);
+
+        // FNV1a hash
+        uint32_t h = 2166136261u;
+        for (char c : type)
+        {
+            h ^= uint32_t(c);
+            h *= 16777619u;
+        }
+
+        // map hash → hue
+        float hue = float(h % 360) / 360.0f;
+
+        // avoid very dark colors
+        const float saturation = 0.55f;
+        const float value      = 0.85f;
+
+        ImVec4 outColor;
+        outColor.w = 1.0f;
+
+        ImGui::ColorConvertHSVtoRGB(hue, saturation, value, outColor.x, outColor.y, outColor.z);
+
+        return ImGui::ColorConvertFloat4ToU32(outColor);
+    }
+
+    void pushNodeTitleColors(std::string_view type, bool isResource = false)
+    {
+        ImU32 base = nodeColorFromType(type, isResource);
+
+        ImVec4 c = ImGui::ColorConvertU32ToFloat4(base);
+
+        ImVec4 hovered  = c;
+        ImVec4 selected = c;
+
+        hovered.x = std::min(hovered.x + 0.08f, 1.0f);
+        hovered.y = std::min(hovered.y + 0.08f, 1.0f);
+        hovered.z = std::min(hovered.z + 0.08f, 1.0f);
+
+        selected.x = std::min(selected.x + 0.15f, 1.0f);
+        selected.y = std::min(selected.y + 0.15f, 1.0f);
+        selected.z = std::min(selected.z + 0.15f, 1.0f);
+
+        ImNodes::PushColorStyle(ImNodesCol_TitleBar, base);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, ImGui::ColorConvertFloat4ToU32(hovered));
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, ImGui::ColorConvertFloat4ToU32(selected));
+    }
+
+    void popNodeTitleColors()
+    {
+        ImNodes::PopColorStyle();
+        ImNodes::PopColorStyle();
+        ImNodes::PopColorStyle();
+    }
+
+    void textOutlined(const char* text, uint32_t fontSize = 18)
+    {
+        ImVec2 pos  = ImGui::GetCursorScreenPos();
+        auto*  draw = ImGui::GetWindowDrawList();
+
+        ImU32 outline          = IM_COL32(0, 0, 0, 255);
+        ImU32 main             = ImGui::GetColorU32(ImGuiCol_Text);
+        auto  font             = ImGui::GetFont();
+        auto  internalFontSize = ImGui::GetFontSize();
+
+        draw->AddText(font, fontSize, ImVec2(pos.x - 1, pos.y), outline, text);
+        draw->AddText(font, fontSize, ImVec2(pos.x + 1, pos.y), outline, text);
+        draw->AddText(font, fontSize, ImVec2(pos.x, pos.y - 1), outline, text);
+        draw->AddText(font, fontSize, ImVec2(pos.x, pos.y + 1), outline, text);
+
+        draw->AddText(font, fontSize, pos, main, text);
+
+        auto scale = fontSize / internalFontSize;
+        auto size  = ImGui::CalcTextSize(text);
+        ImGui::Dummy(ImVec2(size.x * scale, size.y * scale));
     }
 
     // ---------------------------------------------------------------------
@@ -735,22 +835,81 @@ namespace vrendergraph::editor
         commitUndoAction();
     }
 
+    void RenderGraphEditor::addResource(std::string_view name)
+    {
+        if (!m_Graph)
+            return;
+
+        if (name.empty())
+            return;
+
+        // Do not add duplicates
+        for (const auto& r : m_Graph->resources)
+            if (r.name == name)
+                return;
+
+        beginUndoAction();
+        m_Cfg.undo.snapshot();
+
+        ResourceDecl r;
+        r.name = std::string(name);
+        m_Graph->resources.push_back(std::move(r));
+
+        // ensure a stable node id entry is created (optional)
+        const int nid = int(fnv1a32(std::string("res:") + std::string(name)));
+        m_ResourceNodeIds.emplace(std::string(name), nid);
+
+        m_Dirty = true;
+        commitUndoAction();
+    }
+
+    void RenderGraphEditor::removeResource(std::string_view name)
+    {
+        if (!m_Graph)
+            return;
+
+        if (name.empty())
+            return;
+
+        beginUndoAction();
+        m_Cfg.undo.snapshot();
+
+        // Clear any pass inputs that point to this resource (keep slots fixed)
+        for (auto& p : m_Graph->passes)
+        {
+            for (auto& [slot, srcRef] : p.inputs)
+            {
+                if (srcRef == name)
+                    srcRef.clear();
+            }
+        }
+
+        m_Graph->resources.erase(std::remove_if(m_Graph->resources.begin(),
+                                                m_Graph->resources.end(),
+                                                [&](const ResourceDecl& r) { return r.name == name; }),
+                                 m_Graph->resources.end());
+
+        m_ResourceNodeIds.erase(std::string(name));
+
+        m_Dirty = true;
+        commitUndoAction();
+    }
     std::optional<RenderGraphEditor::ResRef> RenderGraphEditor::parseResRef(std::string_view s)
     {
-        // Resources are referenced as "@name" (no dot).
-        // Convert that to {passId="@name", slot="out"} for editor link endpoints.
+        // Resource references have NO '.' and map to a single output pin named "out".
+        // Pass output references use the form "passId.slot".
         const auto dot = s.find('.');
         if (dot == std::string_view::npos)
         {
-            if (!s.empty() && s[0] == '@')
-            {
-                ResRef r;
-                r.passId = std::string(s);
-                r.slot   = "out";
-                return r;
-            }
-            return std::nullopt;
+            if (s.empty())
+                return std::nullopt;
+
+            ResRef r;
+            r.passId = std::string(s);
+            r.slot   = "out";
+            return r;
         }
+
         if (dot == 0 || dot + 1 >= s.size())
             return std::nullopt;
 
@@ -762,9 +921,9 @@ namespace vrendergraph::editor
 
     std::string RenderGraphEditor::makeResRef(std::string_view passId, std::string_view slot)
     {
-        // Resources are referenced as "@name" (no ".out") in RenderGraphDesc inputs.
+        // Resources are referenced by NAME only (no ".out") in RenderGraphDesc inputs.
         // Internally we still treat them as a single output pin with slot "out".
-        if (!passId.empty() && passId[0] == '@')
+        if (slot == "out")
             return std::string(passId);
 
         std::string s;
@@ -1044,13 +1203,7 @@ namespace vrendergraph::editor
         drawToolbar();
         ImGui::Separator();
 
-        // Put the editor in a child region to avoid SetCursorPos boundary warnings.
-        ImGui::BeginChild("RenderGraphCanvas", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollWithMouse);
-
-        // Inspector removed: canvas is the only panel.
         drawCanvas();
-
-        ImGui::EndChild();
 
         drawCreatePassPopup();
         ImGui::End();
@@ -1112,10 +1265,11 @@ namespace vrendergraph::editor
                     nid = it->second;
                 }
 
+                pushNodeTitleColors("resource", true);
                 ImNodes::BeginNode(nid);
 
                 ImNodes::BeginNodeTitleBar();
-                ImGui::TextDisabled("%s", name.c_str());
+                textOutlined(name.c_str());
                 ImNodes::EndNodeTitleBar();
 
                 // Resources have a single output pin.
@@ -1127,6 +1281,7 @@ namespace vrendergraph::editor
                 ImNodes::EndOutputAttribute();
 
                 ImNodes::EndNode();
+                popNodeTitleColors();
             }
         }
 
@@ -1139,13 +1294,27 @@ namespace vrendergraph::editor
 
             const float node_width = 140.0f;
 
+            pushNodeTitleColors(p.type);
             ImNodes::BeginNode(nid);
 
             // -------------------------------------------------------------
             // Title
             // -------------------------------------------------------------
             ImNodes::BeginNodeTitleBar();
-            ImGui::TextUnformatted(p.id.c_str());
+
+            // try get the last number from id (from GBuffer_0 to get 0)
+            // if the id ends with number N, generate a new alias N+1 (GBuffer #1)
+            std::string alias          = p.id;
+            const auto  lastUnderscore = alias.find_last_of('_');
+            if (lastUnderscore != std::string::npos)
+            {
+                const auto& suffix = alias.substr(lastUnderscore + 1);
+                if (std::all_of(suffix.begin(), suffix.end(), ::isdigit))
+                {
+                    alias = alias.substr(0, lastUnderscore) + " #" + std::to_string(std::stoi(suffix) + 1);
+                }
+            }
+            textOutlined(alias.c_str());
             ImNodes::EndNodeTitleBar();
 
             // enforce consistent width
@@ -1353,6 +1522,7 @@ namespace vrendergraph::editor
             }
 
             ImNodes::EndNode();
+            popNodeTitleColors();
 
             // -------------------------------------------------------------
             // Apply saved position
@@ -1402,10 +1572,9 @@ namespace vrendergraph::editor
             }
         }
 
-        ImNodes::EndNodeEditor();
+        ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomRight);
 
-        // Ensure the scrolling region can grow if imnodes used cursor positioning internally.
-        ImGui::Dummy(ImVec2(1.0f, 1.0f));
+        ImNodes::EndNodeEditor();
 
         // -----------------------------------------------------------------
         // Post-frame interaction queries (imnodes: call after EndNodeEditor)
@@ -1521,6 +1690,37 @@ namespace vrendergraph::editor
             m_SpawnNodeScreenPos = ImGui::GetMousePosOnOpeningCurrentPopup();
             m_HasSpawnPos        = true;
 
+            if (ImGui::BeginMenu("Add Resource"))
+            {
+                auto names = m_Registry.listResources();
+                std::sort(names.begin(), names.end(), [](auto a, auto b) { return a < b; });
+
+                for (auto n : names)
+                {
+                    // show disabled if already exists
+                    const bool exists = isListedResource(n);
+                    if (ImGui::MenuItem(std::string(n).c_str(), nullptr, false, !exists))
+                    {
+                        addResource(n);
+                        ImGui::CloseCurrentPopup();
+                        break;
+                    }
+                }
+
+                // Allow custom resources (not registered) as a fallback.
+                ImGui::Separator();
+                static char customName[128] = {};
+                ImGui::InputText("Name", customName, sizeof(customName));
+                if (ImGui::Button("Add") && customName[0] != 0)
+                {
+                    addResource(std::string_view(customName));
+                    customName[0] = 0;
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndMenu();
+            }
+
             if (ImGui::BeginMenu("Add Pass"))
             {
                 auto types = m_Registry.listTypes();
@@ -1566,17 +1766,29 @@ namespace vrendergraph::editor
             }
 
             // check resource node
-            bool isResource = false;
+            std::string resourceName;
             for (auto& [rid, nid] : m_ResourceNodeIds)
             {
                 if (nid == m_ContextNodeId)
                 {
-                    isResource = true;
+                    resourceName = rid;
                     break;
                 }
             }
 
-            if (!passId.empty() && !isResource)
+            if (!resourceName.empty())
+            {
+                if (ImGui::MenuItem("Delete Resource"))
+                {
+                    removeResource(resourceName);
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndPopup();
+                return;
+            }
+
+            if (!passId.empty())
             {
                 auto* pass = findPass(passId);
                 if (pass)

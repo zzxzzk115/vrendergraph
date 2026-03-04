@@ -28,22 +28,54 @@ namespace vrendergraph
         if (j.contains("meta"))
             desc.meta = j.at("meta");
 
+        // -----------------------------------------------------------------
+        // resources
+        //
+        // v2 schema:
+        //   "resources": ["backbuffer", "history", ...]
+        //
+        // Backward compatibility (older schema):
+        //   "resources": { "backbuffer": { ... }, "@backbuffer": { "imported": true, ... }, ... }
+        // Only keys are consumed; per-resource desc/import flags are ignored.
+        // -----------------------------------------------------------------
         if (j.contains("resources"))
         {
             const auto& res = j.at("resources");
-            if (!res.is_object())
-                throw std::runtime_error("vrendergraph: 'resources' must be an object");
 
-            for (auto it = res.begin(); it != res.end(); ++it)
+            if (res.is_array())
             {
-                ResourceDecl rd;
-                rd.name = it.key();
-
-                const auto& rj = it.value();
-                rd.imported    = rj.value("imported", false);
-                rd.desc        = rj; // store opaque json block
-
-                desc.resources.push_back(std::move(rd));
+                for (const auto& v : res)
+                {
+                    if (v.is_string())
+                    {
+                        desc.resources.push_back(ResourceDecl {v.get<std::string>()});
+                    }
+                    else if (v.is_object())
+                    {
+                        // allow [{ "name": "backbuffer" }, ...]
+                        const std::string name = v.value("name", "");
+                        if (!name.empty())
+                            desc.resources.push_back(ResourceDecl {name});
+                    }
+                    else
+                    {
+                        throw std::runtime_error("vrendergraph: 'resources' array elements must be strings or objects");
+                    }
+                }
+            }
+            else if (res.is_object())
+            {
+                // legacy: object map
+                for (auto it = res.begin(); it != res.end(); ++it)
+                {
+                    ResourceDecl rd;
+                    rd.name = it.key();
+                    desc.resources.push_back(std::move(rd));
+                }
+            }
+            else
+            {
+                throw std::runtime_error("vrendergraph: 'resources' must be an array or object");
             }
         }
 
@@ -76,14 +108,9 @@ namespace vrendergraph
 
         if (!desc.resources.empty())
         {
-            nlohmann::json rj = nlohmann::json::object();
+            nlohmann::json rj = nlohmann::json::array();
             for (const auto& r : desc.resources)
-            {
-                // Preserve opaque desc block, but ensure the name key is stable.
-                nlohmann::json obj = r.desc;
-                obj["imported"]    = r.imported;
-                rj[r.name]         = std::move(obj);
-            }
+                rj.push_back(r.name);
             j["resources"] = std::move(rj);
         }
 

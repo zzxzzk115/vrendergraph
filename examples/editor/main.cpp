@@ -72,7 +72,14 @@ struct DepthData
 struct GBufferData
 {
     FrameGraphResource depth;
-    FrameGraphResource gbuffer;
+    FrameGraphResource gPosition;
+    FrameGraphResource gNormal;
+    FrameGraphResource gAlbedo;
+};
+
+struct SSAOData
+{
+    FrameGraphResource ao;
 };
 
 struct SceneColorData
@@ -123,7 +130,7 @@ public:
 // -----------------------------------------------------------------------------
 // GBufferPass
 // inputs : depth
-// outputs: gbuffer, depth (re-export for convenience)
+// outputs: gPosition, gNormal, gAlbedo
 // -----------------------------------------------------------------------------
 
 class GBufferPass
@@ -135,7 +142,6 @@ public:
             .type = "GBuffer",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
-                    // pull input from graph connection
                     DepthData depth {};
                     depth.depth = ctx.getInput("depth");
 
@@ -146,15 +152,19 @@ public:
 
                     const auto& pass = fg.addCallbackPass<GBufferData>(
                         "GBufferPass",
+
                         [depth](FrameGraph::Builder& builder, GBufferData& data) {
                             data.depth = builder.read(depth.depth);
 
-                            data.gbuffer = builder.create<FakeTexture>("GBuffer", {1280, 720});
-                            data.gbuffer = builder.write(data.gbuffer);
+                            data.gPosition = builder.create<FakeTexture>("GPosition", {1280, 720});
+                            data.gNormal   = builder.create<FakeTexture>("GNormal", {1280, 720});
+                            data.gAlbedo   = builder.create<FakeTexture>("GAlbedo", {1280, 720});
 
-                            // re-export depth handle (common pattern)
-                            data.depth = builder.write(builder.read(data.depth));
+                            data.gPosition = builder.write(data.gPosition);
+                            data.gNormal   = builder.write(data.gNormal);
+                            data.gAlbedo   = builder.write(data.gAlbedo);
                         },
+
                         [](const GBufferData&, FrameGraphPassResources&, void*) { std::cout << "[GBufferPass]\n"; });
 
                     if (bb.has<GBufferData>())
@@ -162,18 +172,65 @@ public:
                     else
                         bb.add<GBufferData>() = pass;
 
-                    ctx.setOutput("gbuffer", pass.gbuffer);
-                    ctx.setOutput("depth", pass.depth);
+                    ctx.setOutput("gPosition", pass.gPosition);
+                    ctx.setOutput("gNormal", pass.gNormal);
+                    ctx.setOutput("gAlbedo", pass.gAlbedo);
                 },
+
             .inputs  = {"depth"},
-            .outputs = {"gbuffer", "depth"},
+            .outputs = {"gPosition", "gNormal", "gAlbedo"},
+        });
+    }
+};
+
+// -----------------------------------------------------------------------------
+// SSAOPass
+// inputs : gPosition, gNormal
+// outputs: ao
+// -----------------------------------------------------------------------------
+class SSAOPass
+{
+public:
+    static void registerSelf(RenderGraphRegistry& registry)
+    {
+        registry.registerPass({
+            .type = "SSAO",
+
+            .setup =
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
+                    auto gpos  = ctx.getInput("gPosition");
+                    auto gnorm = ctx.getInput("gNormal");
+
+                    const auto& pass = fg.addCallbackPass<SSAOData>(
+                        "SSAO",
+
+                        [gpos, gnorm](FrameGraph::Builder& builder, SSAOData& data) {
+                            builder.read(gpos);
+                            builder.read(gnorm);
+
+                            data.ao = builder.create<FakeTexture>("SSAO", {1280, 720});
+                            data.ao = builder.write(data.ao);
+                        },
+
+                        [](const SSAOData&, FrameGraphPassResources&, void*) { std::cout << "[SSAO]\n"; });
+
+                    if (bb.has<SSAOData>())
+                        bb.get<SSAOData>() = pass;
+                    else
+                        bb.add<SSAOData>() = pass;
+
+                    ctx.setOutput("ao", pass.ao);
+                },
+
+            .inputs  = {"gPosition", "gNormal"},
+            .outputs = {"ao"},
         });
     }
 };
 
 // -----------------------------------------------------------------------------
 // LightingPass
-// inputs : gbuffer
+// inputs : gPosition, gNormal, gAlbedo, ao
 // outputs: hdr
 // -----------------------------------------------------------------------------
 
@@ -183,37 +240,40 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
+
             .type = "Lighting",
+
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
-                    GBufferData gbuf {};
-                    gbuf.gbuffer = ctx.getInput("gbuffer");
+                [](FrameGraph& fg, FrameGraphBlackboard&, const ParamBlock&, PassBuildContext& ctx) {
+                    auto gpos   = ctx.getInput("gPosition");
+                    auto gnorm  = ctx.getInput("gNormal");
+                    auto albedo = ctx.getInput("gAlbedo");
+                    auto ao     = ctx.getInput("ao");
 
-                    if (bb.has<GBufferData>())
-                        bb.get<GBufferData>() = gbuf;
-                    else
-                        bb.add<GBufferData>() = gbuf;
+                    struct Data
+                    {
+                        FrameGraphResource hdr;
+                    };
 
-                    const auto& pass = fg.addCallbackPass<SceneColorData>(
+                    const auto& pass = fg.addCallbackPass<Data>(
                         "LightingPass",
-                        [gbuf](FrameGraph::Builder& builder, SceneColorData& data) {
-                            builder.read(gbuf.gbuffer);
+
+                        [gpos, gnorm, albedo, ao](FrameGraph::Builder& builder, Data& data) {
+                            builder.read(gpos);
+                            builder.read(gnorm);
+                            builder.read(albedo);
+                            builder.read(ao);
 
                             data.hdr = builder.create<FakeTexture>("SceneHDR", {1280, 720});
                             data.hdr = builder.write(data.hdr);
                         },
-                        [](const SceneColorData&, FrameGraphPassResources&, void*) {
-                            std::cout << "[LightingPass]\n";
-                        });
 
-                    if (bb.has<SceneColorData>())
-                        bb.get<SceneColorData>() = pass;
-                    else
-                        bb.add<SceneColorData>() = pass;
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[LightingPass]\n"; });
 
                     ctx.setOutput("hdr", pass.hdr);
                 },
-            .inputs  = {"gbuffer"},
+
+            .inputs  = {"gPosition", "gNormal", "gAlbedo", "ao"},
             .outputs = {"hdr"},
         });
     }
@@ -389,9 +449,11 @@ int main()
     RenderGraphRegistry registry;
     DepthPrePass::registerSelf(registry);
     GBufferPass::registerSelf(registry);
+    SSAOPass::registerSelf(registry);
     LightingPass::registerSelf(registry);
     ToneMappingPass::registerSelf(registry);
     PresentPass::registerSelf(registry);
+    registry.registerResource("@backbuffer");
 
     // ---- Load scene.json (if missing -> empty graph) ----
     RenderGraphDesc desc;
@@ -428,20 +490,25 @@ int main()
             FrameGraph           fg;
             FrameGraphBlackboard bb;
 
-            // Importer: supports @backbuffer
-            auto importer =
-                [](FrameGraph& fg, std::string_view name, const nlohmann::json& rdesc) -> FrameGraphResource {
-                if (name == "@backbuffer" || name == "backbuffer")
-                {
-                    FakeTexture::Desc d;
-                    d.width  = rdesc.value("width", 1280u);
-                    d.height = rdesc.value("height", 720u);
+            using ProviderFn = std::function<FrameGraphResource(FrameGraph&)>;
 
-                    // We don't really use id in FakeTexture, so just construct default.
-                    return fg.import(std::string(name), d, FakeTexture {});
-                }
-                throw std::runtime_error(std::string("Unknown imported resource: ") + std::string(name));
+            std::unordered_map<std::string, ProviderFn> providers;
+
+            auto updateExternalProviders = [&]() {
+                providers["@backbuffer"] = [&](FrameGraph& fg) -> FrameGraphResource {
+                    FakeTexture::Desc d {1280, 720};
+                    return fg.import("@backbuffer", d, FakeTexture {});
+                };
             };
+
+            auto importer = [&](FrameGraph& fg, std::string_view name) -> FrameGraphResource {
+                auto it = providers.find(std::string(name));
+                if (it == providers.end())
+                    throw std::runtime_error("Unknown imported resource: " + std::string(name));
+                return it->second(fg);
+            };
+
+            updateExternalProviders();
 
             RenderGraph rg(registry, importer);
 
