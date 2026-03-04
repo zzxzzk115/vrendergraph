@@ -1,80 +1,62 @@
 {
-  "resources": {
-    "backbuffer": {
-      "imported": true,
-      "width": 1280,
-      "height": 720,
-      "backbuffer_id": 777
-    }
-  },
-
   "passes": [
     {
-      "type": "gbuffer",
+      "enabled": true,
+      "id": "Depth_Pre",
       "outputs": {
-        "albedo": "gbuf.albedo",
-        "normal": "gbuf.normal",
-        "depth":  "gbuf.depth"
-      }
+        "depth": "Depth_Pre.depth"
+      },
+      "type": "Depth_Pre"
     },
-
     {
-      "type": "lighting",
+      "enabled": true,
+      "id": "GBuffer",
       "inputs": {
-        "albedo": "gbuf.albedo",
-        "normal": "gbuf.normal",
-        "depth":  "gbuf.depth"
+        "depth": "Depth_Pre.depth"
       },
       "outputs": {
-        "hdr": "scene.hdr"
-      }
+        "gbuffer": "GBuffer.gbuffer"
+      },
+      "type": "GBuffer"
     },
-
     {
-      "type": "tonemap",
+      "enabled": true,
+      "id": "Lighting",
       "inputs": {
-        "hdr": "scene.hdr"
+        "gbuffer": "GBuffer.gbuffer"
       },
       "outputs": {
-        "ldr": "scene.ldr"
-      }
+        "hdr": "Lighting.hdr"
+      },
+      "type": "Lighting"
     },
-
     {
-      "type": "fxaa",
+      "enabled": true,
+      "id": "Tonemap",
       "inputs": {
-        "input": "scene.ldr"
+        "hdr": "Lighting.hdr"
       },
       "outputs": {
-        "output": "scene.final"
-      }
-    },
-
-    {
-      "type": "present",
-      "inputs": {
-        "color": "scene.final",
-        "backbuffer": "backbuffer"
+        "ldr": "Tonemap.ldr"
       },
-      "outputs": {
-        "backbuffer": "backbuffer"
-      }
+      "type": "Tonemap"
+    },
+    {
+      "enabled": true,
+      "id": "Present",
+      "inputs": {
+        "backbuffer": "backbuffer",
+        "color": "Tonemap.ldr"
+      },
+      "type": "Present"
     }
-  ]
-
-  ,"meta": {
-    "editor": {
-      "view": {
-        "zoom": 1.0,
-        "pan": [0.0, 0.0]
-      },
-      "nodes": {
-        "gbuffer":  { "pos": [-300.0,   0.0] },
-        "lighting": { "pos": [  50.0, -60.0] },
-        "tonemap":  { "pos": [ 400.0,   0.0] },
-        "fxaa":     { "pos": [ 700.0,   0.0] },
-        "present":  { "pos": [ 980.0,   0.0] }
-      }
+  ],
+  "resources": {
+    "backbuffer": {
+      "backbuffer_id": 777,
+      "height": 720,
+      "imported": true,
+      "width": 1280
     }
   }
 }
