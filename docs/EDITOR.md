@@ -121,21 +121,18 @@ RenderGraphDesc graph;
 
 ## 5. Draw editor
 
-Inside your ImGui frame:
-
 ```cpp
-namespace ed = ax::NodeEditor;
+// Before main-loop
+ImNodes::CreateContext();
 
-static ed::EditorContext* ctx = ed::CreateEditor();
-
-void drawRenderGraphEditor()
+// Main-loop
+while(...)
 {
-    ed::SetCurrentEditor(ctx);
-
     editor.draw();
-
-    ed::SetCurrentEditor(nullptr);
 }
+
+// After main-loop
+ImNodes::DestroyContext();
 ```
 
 ---

@@ -1357,11 +1357,12 @@ namespace vrendergraph::editor
                     bool changed = false;
                     if (min.has_value() && max.has_value())
                     {
-                        changed = ImGui::DragFloat("##param_float_value", &v, 0.01f, min.value(), max.value());
+                        changed = ImGui::DragFloat(
+                            std::format("##{}", param.name).c_str(), &v, 0.01f, min.value(), max.value());
                     }
                     else
                     {
-                        changed = ImGui::DragFloat("##param_float_value", &v, 0.01f);
+                        changed = ImGui::DragFloat(std::format("##{}", param.name).c_str(), &v, 0.01f);
                     }
 
                     if (changed)
@@ -1402,11 +1403,12 @@ namespace vrendergraph::editor
                     bool changed = false;
                     if (min.has_value() && max.has_value())
                     {
-                        changed = ImGui::DragInt("##value", &v, 1, min.value(), max.value());
+                        changed =
+                            ImGui::DragInt(std::format("##{}", param.name).c_str(), &v, 1, min.value(), max.value());
                     }
                     else
                     {
-                        changed = ImGui::DragInt("##param_int_value", &v, 1);
+                        changed = ImGui::DragInt(std::format("##{}", param.name).c_str(), &v, 1);
                     }
 
                     if (changed)
@@ -1433,7 +1435,7 @@ namespace vrendergraph::editor
 
                     ImGui::PushItemWidth(node_width - label_width - 12.f);
 
-                    bool changed = ImGui::Checkbox("##param_boolean_value", &v);
+                    bool changed = ImGui::Checkbox(std::format("##{}", param.name).c_str(), &v);
 
                     if (changed)
                     {
@@ -1461,7 +1463,7 @@ namespace vrendergraph::editor
 
                     char buf[256];
                     std::strncpy(buf, v.c_str(), sizeof(buf));
-                    bool changed = ImGui::InputText("##param_str_value", buf, sizeof(buf));
+                    bool changed = ImGui::InputText(std::format("##{}", param.name).c_str(), buf, sizeof(buf));
 
                     if (changed)
                     {
@@ -1482,11 +1484,13 @@ namespace vrendergraph::editor
                 ImGui::Spacing();
 
             // -------------------------------------------------------------
-            // Inputs
+            // Inputs (use registry order)
             // -------------------------------------------------------------
-            for (const auto& [slot, src] : p.inputs)
+            for (const auto& slot : def.inputs)
             {
-                (void)src;
+                auto it = p.inputs.find(slot);
+                if (it == p.inputs.end())
+                    continue;
 
                 PinKey pk {p.id, slot, true};
                 int    pid = ensurePinId(pk);
@@ -1502,11 +1506,13 @@ namespace vrendergraph::editor
                 ImGui::Spacing();
 
             // -------------------------------------------------------------
-            // Outputs
+            // Outputs (use registry order)
             // -------------------------------------------------------------
-            for (const auto& [slot, res] : p.outputs)
+            for (const auto& slot : def.outputs)
             {
-                (void)res;
+                auto it = p.outputs.find(slot);
+                if (it == p.outputs.end())
+                    continue;
 
                 PinKey pk {p.id, slot, false};
                 int    pid = ensurePinId(pk);

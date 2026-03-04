@@ -18,6 +18,8 @@
         <img src="https://img.shields.io/github/license/zzxzzk115/vrendergraph"></a>
 </p>
 
+![Editor Example](./media/vrendergraph_editor_example.png)
+
 Goals:
 
 - Keep the runtime builder minimal and deterministic (execute passes in `passes[]` order).
@@ -28,60 +30,65 @@ Goals:
 
 ```json
 {
-  "resources": {
-    "backbuffer": {
-      "imported": true,
-      "width": 1280,
-      "height": 720,
-      "backbuffer_id": 777
-    }
-  },
-
+  "resources": ["backbuffer"],
   "passes": [
     {
-      "id": "gbuffer",
-      "type": "gbuffer",
+      "enabled": true,
+      "id": "Depth_Pre",
       "outputs": {
-        "albedo": "gbuf.albedo",
-        "normal": "gbuf.normal",
-        "depth": "gbuf.depth"
-      }
+        "depth": "Depth_Pre.depth"
+      },
+      "type": "Depth_Pre"
     },
     {
-      "id": "lighting",
-      "type": "lighting",
+      "enabled": true,
+      "id": "GBuffer",
       "inputs": {
-        "albedo": "gbuf.albedo",
-        "normal": "gbuf.normal",
-        "depth": "gbuf.depth"
+        "depth": "Depth_Pre.depth"
       },
       "outputs": {
-        "hdr": "scene.hdr"
+        "gbuffer": "GBuffer.gbuffer"
       },
-      "params": {
-        "enableIBL": true
-      }
+      "type": "GBuffer"
     },
     {
-      "id": "present",
-      "type": "present",
+      "enabled": true,
+      "id": "Lighting",
       "inputs": {
-        "color": "scene.hdr",
-        "backbuffer": "backbuffer"
+        "gbuffer": "GBuffer.gbuffer"
       },
       "outputs": {
-        "backbuffer": "backbuffer"
-      }
+        "hdr": "Lighting.hdr"
+      },
+      "type": "Lighting"
+    },
+    {
+      "enabled": true,
+      "id": "Tonemap",
+      "inputs": {
+        "hdr": "Lighting.hdr"
+      },
+      "outputs": {
+        "ldr": "Tonemap.ldr"
+      },
+      "type": "Tonemap"
+    },
+    {
+      "enabled": true,
+      "id": "Present",
+      "inputs": {
+        "backbuffer": "backbuffer",
+        "color": "Tonemap.ldr"
+      },
+      "type": "Present"
     }
   ],
-
   "meta": {
     "editor": {
       "view": { "zoom": 1.0, "pan": [0.0, 0.0] },
       "nodes": {
-        "gbuffer": { "pos": [-300.0, 0.0] },
-        "lighting": { "pos": [50.0, -60.0] },
-        "present": { "pos": [500.0, 0.0] }
+        "Depth_Pre": { "pos": [-300.0, 0.0] }
+        // ...
       }
     }
   }
@@ -91,7 +98,7 @@ Goals:
 Notes:
 
 - `passes[]` is required.
-- `resources{}` is optional.
+- `resources[]` can be empty.
 - `meta{}` is optional and intended for tools.
 
 ## Documentation

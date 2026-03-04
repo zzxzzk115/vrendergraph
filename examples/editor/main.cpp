@@ -64,6 +64,12 @@ struct FakeTexture
 // Blackboard resources
 // -----------------------------------------------------------------------------
 
+struct FrameInfo
+{
+    uint32_t width;
+    uint32_t height;
+};
+
 struct DepthData
 {
     FrameGraphResource depth;
@@ -92,11 +98,6 @@ struct BackbufferData
     FrameGraphResource backbuffer;
 };
 
-// -----------------------------------------------------------------------------
-// DepthPrePass
-// outputs: depth
-// -----------------------------------------------------------------------------
-
 class DepthPrePass
 {
 public:
@@ -104,34 +105,38 @@ public:
     {
         registry.registerPass({
             .type = "Depth_Pre",
+
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
-                    const auto& pass = fg.addCallbackPass<DepthData>(
-                        "DepthPrePass",
-                        [](FrameGraph::Builder& builder, DepthData& data) {
-                            data.depth = builder.create<FakeTexture>("DepthBuffer", {1280, 720});
+                    const auto& frame = bb.get<FrameInfo>();
+
+                    FakeTexture::Desc desc;
+                    desc.width  = frame.width;
+                    desc.height = frame.height;
+                    std::cout << "DepthPrePass: " << desc.width << "x" << desc.height << "\n";
+
+                    struct Data
+                    {
+                        FrameGraphResource depth;
+                    };
+
+                    const auto& pass = fg.addCallbackPass<Data>(
+                        "DepthPre",
+
+                        [desc](FrameGraph::Builder& builder, Data& data) {
+                            data.depth = builder.create<FakeTexture>("Depth", desc);
                             data.depth = builder.write(data.depth);
                         },
-                        [](const DepthData&, FrameGraphPassResources&, void*) { std::cout << "[DepthPrePass]\n"; });
 
-                    if (bb.has<DepthData>())
-                        bb.get<DepthData>() = pass;
-                    else
-                        bb.add<DepthData>() = pass;
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[Depth]\n"; });
 
-                    // --- publish output pin for editor/json ---
                     ctx.setOutput("depth", pass.depth);
                 },
+
             .outputs = {"depth"},
         });
     }
 };
-
-// -----------------------------------------------------------------------------
-// GBufferPass
-// inputs : depth
-// outputs: gPosition, gNormal, gAlbedo
-// -----------------------------------------------------------------------------
 
 class GBufferPass
 {
@@ -140,54 +145,72 @@ public:
     {
         registry.registerPass({
             .type = "GBuffer",
+
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
-                    DepthData depth {};
-                    depth.depth = ctx.getInput("depth");
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& pb, PassBuildContext& ctx) {
+                    auto depth = ctx.getInput("depth");
 
-                    if (bb.has<DepthData>())
-                        bb.get<DepthData>() = depth;
-                    else
-                        bb.add<DepthData>() = depth;
+                    const auto& frame = bb.get<FrameInfo>();
 
-                    const auto& pass = fg.addCallbackPass<GBufferData>(
-                        "GBufferPass",
+                    FakeTexture::Desc desc;
+                    desc.width  = frame.width;
+                    desc.height = frame.height;
 
-                        [depth](FrameGraph::Builder& builder, GBufferData& data) {
-                            data.depth = builder.read(depth.depth);
+                    bool writeVelocity = pb.get<bool>("velocity", true);
+                    std::cout << "GBuffer write velocity: " << writeVelocity << "\n";
 
-                            data.gPosition = builder.create<FakeTexture>("GPosition", {1280, 720});
-                            data.gNormal   = builder.create<FakeTexture>("GNormal", {1280, 720});
-                            data.gAlbedo   = builder.create<FakeTexture>("GAlbedo", {1280, 720});
+                    struct Data
+                    {
+                        FrameGraphResource depth;
+                        FrameGraphResource gpos;
+                        FrameGraphResource gnorm;
+                        FrameGraphResource galbedo;
+                        FrameGraphResource velocity;
+                    };
 
-                            data.gPosition = builder.write(data.gPosition);
-                            data.gNormal   = builder.write(data.gNormal);
-                            data.gAlbedo   = builder.write(data.gAlbedo);
+                    const auto& pass = fg.addCallbackPass<Data>(
+                        "GBuffer",
+
+                        [depth, desc, writeVelocity](FrameGraph::Builder& builder, Data& data) {
+                            data.depth = builder.read(depth);
+
+                            data.gpos    = builder.create<FakeTexture>("gPosition", desc);
+                            data.gnorm   = builder.create<FakeTexture>("gNormal", desc);
+                            data.galbedo = builder.create<FakeTexture>("gAlbedo", desc);
+
+                            data.gpos    = builder.write(data.gpos);
+                            data.gnorm   = builder.write(data.gnorm);
+                            data.galbedo = builder.write(data.galbedo);
+
+                            if (writeVelocity)
+                            {
+                                data.velocity = builder.create<FakeTexture>("velocity", desc);
+                                data.velocity = builder.write(data.velocity);
+                            }
                         },
 
-                        [](const GBufferData&, FrameGraphPassResources&, void*) { std::cout << "[GBufferPass]\n"; });
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[GBuffer]\n"; });
 
-                    if (bb.has<GBufferData>())
-                        bb.get<GBufferData>() = pass;
-                    else
-                        bb.add<GBufferData>() = pass;
-
-                    ctx.setOutput("gPosition", pass.gPosition);
-                    ctx.setOutput("gNormal", pass.gNormal);
-                    ctx.setOutput("gAlbedo", pass.gAlbedo);
+                    ctx.setOutput("gPosition", pass.gpos);
+                    ctx.setOutput("gNormal", pass.gnorm);
+                    ctx.setOutput("gAlbedo", pass.galbedo);
                 },
 
             .inputs  = {"depth"},
             .outputs = {"gPosition", "gNormal", "gAlbedo"},
+
+            .params =
+                {
+                    {
+                        .name         = "velocity",
+                        .type         = ParamType::eBoolean,
+                        .defaultValue = true,
+                    },
+                },
         });
     }
 };
 
-// -----------------------------------------------------------------------------
-// SSAOPass
-// inputs : gPosition, gNormal
-// outputs: ao
-// -----------------------------------------------------------------------------
 class SSAOPass
 {
 public:
@@ -197,42 +220,58 @@ public:
             .type = "SSAO",
 
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& pb, PassBuildContext& ctx) {
                     auto gpos  = ctx.getInput("gPosition");
                     auto gnorm = ctx.getInput("gNormal");
+                    auto depth = ctx.getInput("depth");
 
-                    const auto& pass = fg.addCallbackPass<SSAOData>(
+                    const auto& frame = bb.get<FrameInfo>();
+
+                    FakeTexture::Desc desc;
+                    desc.width  = frame.width;
+                    desc.height = frame.height;
+
+                    float radius = pb.get<float>("radius", 0.5f);
+                    std::cout << "SSAO radius: " << radius << "\n";
+
+                    struct Data
+                    {
+                        FrameGraphResource ao;
+                    };
+
+                    const auto& pass = fg.addCallbackPass<Data>(
                         "SSAO",
 
-                        [gpos, gnorm](FrameGraph::Builder& builder, SSAOData& data) {
+                        [gpos, gnorm, depth, desc](FrameGraph::Builder& builder, Data& data) {
                             builder.read(gpos);
                             builder.read(gnorm);
+                            builder.read(depth);
 
-                            data.ao = builder.create<FakeTexture>("SSAO", {1280, 720});
+                            data.ao = builder.create<FakeTexture>("ao", desc);
                             data.ao = builder.write(data.ao);
                         },
 
-                        [](const SSAOData&, FrameGraphPassResources&, void*) { std::cout << "[SSAO]\n"; });
-
-                    if (bb.has<SSAOData>())
-                        bb.get<SSAOData>() = pass;
-                    else
-                        bb.add<SSAOData>() = pass;
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[SSAO]\n"; });
 
                     ctx.setOutput("ao", pass.ao);
                 },
 
-            .inputs  = {"gPosition", "gNormal"},
+            .inputs  = {"gPosition", "gNormal", "depth"},
             .outputs = {"ao"},
+
+            .params =
+                {
+                    {
+                        .name         = "radius",
+                        .type         = ParamType::eFloat,
+                        .defaultValue = 0.5f,
+                        .minValue     = 0.0f,
+                        .maxValue     = 1.0f,
+                    },
+                },
         });
     }
 };
-
-// -----------------------------------------------------------------------------
-// LightingPass
-// inputs : gPosition, gNormal, gAlbedo, ao
-// outputs: hdr
-// -----------------------------------------------------------------------------
 
 class LightingPass
 {
@@ -240,15 +279,23 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-
             .type = "Lighting",
 
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard&, const ParamBlock&, PassBuildContext& ctx) {
-                    auto gpos   = ctx.getInput("gPosition");
-                    auto gnorm  = ctx.getInput("gNormal");
-                    auto albedo = ctx.getInput("gAlbedo");
-                    auto ao     = ctx.getInput("ao");
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& pb, PassBuildContext& ctx) {
+                    auto gpos  = ctx.getInput("gPosition");
+                    auto gnorm = ctx.getInput("gNormal");
+                    auto galb  = ctx.getInput("gAlbedo");
+                    auto ao    = ctx.getInput("ao");
+
+                    const auto& frame = bb.get<FrameInfo>();
+
+                    FakeTexture::Desc desc;
+                    desc.width  = frame.width;
+                    desc.height = frame.height;
+
+                    float ambient = pb.get<float>("ambient", 0.05f);
+                    std::cout << "Lighting ambient: " << ambient << "\n";
 
                     struct Data
                     {
@@ -256,56 +303,58 @@ public:
                     };
 
                     const auto& pass = fg.addCallbackPass<Data>(
-                        "LightingPass",
+                        "Lighting",
 
-                        [gpos, gnorm, albedo, ao](FrameGraph::Builder& builder, Data& data) {
+                        [gpos, gnorm, galb, ao, desc](FrameGraph::Builder& builder, Data& data) {
                             builder.read(gpos);
                             builder.read(gnorm);
-                            builder.read(albedo);
+                            builder.read(galb);
                             builder.read(ao);
 
-                            data.hdr = builder.create<FakeTexture>("SceneHDR", {1280, 720});
+                            data.hdr = builder.create<FakeTexture>("hdr", desc);
                             data.hdr = builder.write(data.hdr);
                         },
 
-                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[LightingPass]\n"; });
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[Lighting]\n"; });
 
                     ctx.setOutput("hdr", pass.hdr);
                 },
 
             .inputs  = {"gPosition", "gNormal", "gAlbedo", "ao"},
             .outputs = {"hdr"},
+
+            .params =
+                {
+                    {.name         = "ambient",
+                     .type         = ParamType::eFloat,
+                     .defaultValue = 0.05f,
+                     .minValue     = 0.0f,
+                     .maxValue     = 1.0f},
+                },
         });
     }
 };
 
-// -----------------------------------------------------------------------------
-// ToneMappingPass
-// inputs : hdr
-// outputs: ldr
-// -----------------------------------------------------------------------------
-
-class ToneMappingPass
+class TonemapPass
 {
 public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
             .type = "Tonemap",
+
             .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& paramBlock, PassBuildContext& ctx) {
-                    auto exposure = paramBlock.get<float>("exposure", 1.0f);
-                    auto aces     = paramBlock.get<bool>("aces", false);
-                    std::cout << "ToneMappingPass param: exposure = " << exposure
-                              << ", aces = " << (aces ? "true" : "false") << "\n";
+                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock& pb, PassBuildContext& ctx) {
+                    auto hdr = ctx.getInput("hdr");
 
-                    SceneColorData sc {};
-                    sc.hdr = ctx.getInput("hdr");
+                    const auto& frame = bb.get<FrameInfo>();
 
-                    if (bb.has<SceneColorData>())
-                        bb.get<SceneColorData>() = sc;
-                    else
-                        bb.add<SceneColorData>() = sc;
+                    FakeTexture::Desc desc;
+                    desc.width  = frame.width;
+                    desc.height = frame.height;
+
+                    float exposure = pb.get<float>("exposure", 1.0f);
+                    std::cout << "Tonemap exposure: " << exposure << "\n";
 
                     struct Data
                     {
@@ -313,20 +362,23 @@ public:
                     };
 
                     const auto& pass = fg.addCallbackPass<Data>(
-                        "ToneMappingPass",
-                        [sc, exposure](FrameGraph::Builder& builder, Data& data) {
-                            builder.read(sc.hdr);
+                        "Tonemap",
 
-                            data.ldr = builder.create<FakeTexture>("SceneLDR", {1280, 720});
+                        [hdr, desc](FrameGraph::Builder& builder, Data& data) {
+                            builder.read(hdr);
+
+                            data.ldr = builder.create<FakeTexture>("ldr", desc);
                             data.ldr = builder.write(data.ldr);
                         },
-                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[ToneMappingPass]\n"; });
 
-                    // publish output
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[Tonemap]\n"; });
+
                     ctx.setOutput("ldr", pass.ldr);
                 },
+
             .inputs  = {"hdr"},
             .outputs = {"ldr"},
+
             .params =
                 {
                     {
@@ -334,20 +386,12 @@ public:
                         .type         = ParamType::eFloat,
                         .defaultValue = 1.0f,
                         .minValue     = 0.0f,
-                        .maxValue     = 5.0f,
+                        .maxValue     = 10.0f,
                     },
-                    {.name = "aces", .type = ParamType::eBoolean, .defaultValue = false},
                 },
         });
     }
 };
-
-// -----------------------------------------------------------------------------
-// PresentPass
-// inputs : color, backbuffer
-// outputs: backbuffer
-// side-effect pass
-// -----------------------------------------------------------------------------
 
 class PresentPass
 {
@@ -356,39 +400,33 @@ public:
     {
         registry.registerPass({
             .type = "Present",
-            .setup =
-                [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
-                    const auto color      = ctx.getInput("color");
-                    auto       backbuffer = ctx.getInput("backbuffer");
 
-                    // keep in blackboard (optional)
-                    BackbufferData bbData {backbuffer};
-                    if (bb.has<BackbufferData>())
-                        bb.get<BackbufferData>() = bbData;
-                    else
-                        bb.add<BackbufferData>() = bbData;
+            .setup =
+                [](FrameGraph& fg, FrameGraphBlackboard&, const ParamBlock&, PassBuildContext& ctx) {
+                    auto color = ctx.getInput("color");
+                    auto back  = ctx.getInput("backbuffer");
 
                     struct Data
                     {
-                        FrameGraphResource backbuffer;
+                        FrameGraphResource back;
                         FrameGraphResource color;
                     };
 
                     const auto& pass = fg.addCallbackPass<Data>(
-                        "PresentPass",
-                        [color, backbuffer](FrameGraph::Builder& builder, Data& data) {
-                            data.color = builder.read(color);
+                        "Present",
 
-                            // In a real renderer, this is "write backbuffer as RT"
-                            data.backbuffer = builder.write(backbuffer);
+                        [color, back](FrameGraph::Builder& builder, Data& data) {
+                            data.color = builder.read(color);
+                            data.back  = builder.write(back);
                             builder.setSideEffect();
                         },
-                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[PresentPass]\n"; });
 
-                    ctx.setOutput("backbuffer", pass.backbuffer);
+                        [](const Data&, FrameGraphPassResources&, void*) { std::cout << "[Present]\n"; });
+
+                    // ctx.setOutput("backbuffer", pass.back);
                 },
-            .inputs  = {"color", "backbuffer"},
-            .outputs = {"backbuffer"},
+
+            .inputs = {"color", "backbuffer"},
         });
     }
 };
@@ -451,7 +489,7 @@ int main()
     GBufferPass::registerSelf(registry);
     SSAOPass::registerSelf(registry);
     LightingPass::registerSelf(registry);
-    ToneMappingPass::registerSelf(registry);
+    TonemapPass::registerSelf(registry);
     PresentPass::registerSelf(registry);
     registry.registerResource("@backbuffer");
 
@@ -489,6 +527,9 @@ int main()
 
             FrameGraph           fg;
             FrameGraphBlackboard bb;
+
+            FrameInfo frame {1280, 720};
+            bb.add<FrameInfo>() = frame;
 
             using ProviderFn = std::function<FrameGraphResource(FrameGraph&)>;
 

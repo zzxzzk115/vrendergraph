@@ -3,26 +3,26 @@
     "editor": {
       "nodes": {
         "Depth_Pre": {
-          "pos": [-38.0, 105.99998474121094]
+          "pos": [3.99945068359375, 93.84269714355469]
         },
         "GBuffer": {
-          "pos": [140.99945068359375, 202.8426971435547]
+          "pos": [199.99945068359375, 182.8426971435547]
         },
         "Lighting": {
-          "pos": [568.9994506835938, 287.84271240234375]
+          "pos": [625.9994506835938, 235.8426971435547]
         },
         "Present": {
-          "pos": [984.9999389648438, 127.99998474121094]
+          "pos": [1007.99951171875, -2.1573028564453125]
         },
         "SSAO": {
-          "pos": [370.99945068359375, 148.8426971435547]
+          "pos": [437.99945068359375, 87.84269714355469]
         },
         "Tonemap": {
-          "pos": [771.0, 217.99998474121094]
+          "pos": [813.9994506835938, 86.84269714355469]
         }
       },
       "view": {
-        "pan": [60.00054931640625, 79.15730285644531],
+        "pan": [53.00054931640625, 70.15730285644531],
         "zoom": 1.0
       }
     }
@@ -47,17 +47,24 @@
         "gNormal": "GBuffer.gNormal",
         "gPosition": "GBuffer.gPosition"
       },
+      "params": {
+        "velocity": true
+      },
       "type": "GBuffer"
     },
     {
       "enabled": true,
       "id": "SSAO",
       "inputs": {
+        "depth": "Depth_Pre.depth",
         "gNormal": "GBuffer.gNormal",
         "gPosition": "GBuffer.gPosition"
       },
       "outputs": {
         "ao": "SSAO.ao"
+      },
+      "params": {
+        "radius": 0.5
       },
       "type": "SSAO"
     },
@@ -73,6 +80,9 @@
       "outputs": {
         "hdr": "Lighting.hdr"
       },
+      "params": {
+        "ambient": 0.05000000074505806
+      },
       "type": "Lighting"
     },
     {
@@ -85,8 +95,7 @@
         "ldr": "Tonemap.ldr"
       },
       "params": {
-        "aces": true,
-        "exposure": 1.05
+        "exposure": 1.0499999523162842
       },
       "type": "Tonemap"
     },
