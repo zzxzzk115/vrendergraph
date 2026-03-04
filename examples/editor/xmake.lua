@@ -21,6 +21,7 @@ target("vrendergraph_example_editor")
     -- copy scene.json to output dir
 	after_build(function (target)
 		os.cp("$(scriptdir)/scene.json", path.join(target:targetdir(), "scene.json"))
+        os.cp("$(scriptdir)/imgui.ini", path.join(target:targetdir(), "imgui.ini"))
 	end)
 
     -- set target directory

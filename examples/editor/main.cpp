@@ -6,7 +6,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 
-#include <imgui_node_editor/imgui_node_editor.h>
+// --- imnodes ---
+#include <imnodes/imnodes.h>
 
 #define VRENDERGRAPH_EDITOR_IMPLEMENTATION
 #include <vrendergraph_editor.hpp>
@@ -23,7 +24,6 @@
 #include <stdexcept>
 #include <string>
 
-namespace ed = ax::NodeEditor;
 using namespace vrendergraph;
 
 // -----------------------------------------------------------------------------
@@ -95,7 +95,7 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-            .type = "depth_pre",
+            .type = "Depth_Pre",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
                     const auto& pass = fg.addCallbackPass<DepthData>(
@@ -131,7 +131,7 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-            .type = "gbuffer",
+            .type = "GBuffer",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
                     // pull input from graph connection
@@ -182,7 +182,7 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-            .type = "lighting",
+            .type = "Lighting",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
                     GBufferData gbuf {};
@@ -230,7 +230,7 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-            .type = "tonemap",
+            .type = "Tonemap",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
                     SceneColorData sc {};
@@ -278,7 +278,7 @@ public:
     static void registerSelf(RenderGraphRegistry& registry)
     {
         registry.registerPass({
-            .type = "present",
+            .type = "Present",
             .setup =
                 [](FrameGraph& fg, FrameGraphBlackboard& bb, const ParamBlock&, PassBuildContext& ctx) {
                     const auto color      = ctx.getInput("color");
@@ -361,11 +361,12 @@ int main()
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
 
+    // ---- imnodes init (REQUIRED) ----
+    ImNodes::CreateContext();
+    ImNodes::StyleColorsDark();
+
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(choose_imgui_glsl_version());
-
-    ed::Config edConfig;
-    auto*      edCtx = ed::CreateEditor(&edConfig);
 
     // ---- Register passes ----
     RenderGraphRegistry registry;
@@ -399,9 +400,7 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        ed::SetCurrentEditor(edCtx);
         editor.draw();
-        ed::SetCurrentEditor(nullptr);
 
         ImGui::Begin("Runtime");
 
@@ -477,10 +476,12 @@ int main()
         glfwSwapBuffers(window);
     }
 
-    ed::DestroyEditor(edCtx);
-
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+
+    // ---- imnodes shutdown (REQUIRED) ----
+    ImNodes::DestroyContext();
+
     ImGui::DestroyContext();
 
     glfwDestroyWindow(window);

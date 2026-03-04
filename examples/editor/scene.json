@@ -1,72 +1,87 @@
 {
-  "resources": {
-    "@backbuffer": {
-      "imported": true,
-      "width": 1280,
-      "height": 720,
-      "backbuffer_id": 777
+  "meta": {
+    "editor": {
+      "nodes": {
+        "Depth_Pre": {
+          "pos": [8.0, 290.0]
+        },
+        "GBuffer": {
+          "pos": [227.0, 171.99998474121094]
+        },
+        "Lighting": {
+          "pos": [461.0, 326.0]
+        },
+        "Present": {
+          "pos": [1040.0, 120.0]
+        },
+        "Tonemap": {
+          "pos": [730.0, 204.0]
+        }
+      },
+      "view": {
+        "pan": [60.00054931640625, 79.15730285644531],
+        "zoom": 1.0
+      }
     }
   },
   "passes": [
     {
-      "id": "depth",
-      "type": "depth_pre",
+      "enabled": true,
+      "id": "Depth_Pre",
       "outputs": {
-        "depth": "depth.depth"
-      }
+        "depth": "Depth_Pre.depth"
+      },
+      "type": "Depth_Pre"
     },
     {
-      "id": "gbuffer",
-      "type": "gbuffer",
+      "enabled": true,
+      "id": "GBuffer",
       "inputs": {
-        "depth": "depth.depth"
+        "depth": "Depth_Pre.depth"
       },
       "outputs": {
-        "gbuffer": "gbuffer.gbuffer"
-      }
+        "gbuffer": "GBuffer.gbuffer"
+      },
+      "type": "GBuffer"
     },
     {
-      "id": "lighting",
-      "type": "lighting",
+      "enabled": true,
+      "id": "Lighting",
       "inputs": {
-        "gbuffer": "gbuffer.gbuffer"
+        "gbuffer": "GBuffer.gbuffer"
       },
       "outputs": {
-        "hdr": "lighting.hdr"
-      }
+        "hdr": "Lighting.hdr"
+      },
+      "type": "Lighting"
     },
     {
-      "id": "tonemap",
-      "type": "tonemap",
+      "enabled": true,
+      "id": "Tonemap",
       "inputs": {
-        "hdr": "lighting.hdr"
+        "hdr": "Lighting.hdr"
       },
       "outputs": {
-        "ldr": "tonemap.ldr"
-      }
+        "ldr": "Tonemap.ldr"
+      },
+      "type": "Tonemap"
     },
     {
-      "id": "present",
-      "type": "present",
+      "enabled": true,
+      "id": "Present",
       "inputs": {
-        "color": "tonemap.ldr",
-        "backbuffer": "@backbuffer"
-      }
+        "backbuffer": "@backbuffer",
+        "color": "Tonemap.ldr"
+      },
+      "type": "Present"
     }
   ],
-  "meta": {
-    "editor": {
-      "nodes": {
-        "depth": { "pos": [80, 120] },
-        "gbuffer": { "pos": [320, 120] },
-        "lighting": { "pos": [560, 120] },
-        "tonemap": { "pos": [800, 120] },
-        "present": { "pos": [1040, 120] }
-      },
-      "view": {
-        "zoom": 1.0,
-        "pan": [0, 0]
-      }
+  "resources": {
+    "@backbuffer": {
+      "backbuffer_id": 777,
+      "height": 720,
+      "imported": true,
+      "width": 1280
     }
   }
 }
