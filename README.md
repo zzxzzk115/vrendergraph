@@ -112,7 +112,7 @@ Notes:
 `vrendergraph_editor.hpp` provides header-only helpers to read/write editor UI state
 into `RenderGraphDesc::meta`.
 
-`imgui.h` and `imgui_node_editor.h` are needed.
+`imgui.h` and `imnodes` are needed.
 
 ## License
 

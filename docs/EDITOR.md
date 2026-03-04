@@ -4,8 +4,8 @@ Below is a minimal example showing how any application can integrate the **vrend
 
 The editor is **header-only** and depends on:
 
-- ImGui
-- ax::NodeEditor
+- imgui
+- imnodes
 
 The runtime (`vrendergraph`) itself has **no UI dependency**.
 
