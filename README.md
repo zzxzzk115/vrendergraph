@@ -19,6 +19,7 @@
 </p>
 
 ![Editor Example](./media/vrendergraph_editor_example.png)
+![Output](./media/out.svg)
 
 Goals:
 
